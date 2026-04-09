@@ -11,7 +11,7 @@ t, ch1, ch2 = np.loadtxt(
 # plot completo
 plt.figure(figsize=(10, 5))
 plt.plot(t, ch1, label="CH1")
-plt.plot(t, ch2, label="CH2")
+plt.plot(t, ch2, label="CH2", markersize=3)
 plt.xlabel("Tempo [s]")
 plt.ylabel("Tensione [V]")
 plt.title("Segnale completo dal CSV")

@@ -9,7 +9,7 @@ def main():
     #############
     #loading the data from the csv file (only intrested in 1 and 3 column, which are the time and the voltage values) and selecting the ROI for the fit
     t, Vch1, Vch2 = np.loadtxt("TEK00001.csv", delimiter=",", skiprows=16, unpack=True)    
-    mask=(t>1.5e-05) & (t<5.5e-05) #selecting the time range of interest for the fit
+    mask=(t>2e-05) & (t<5.5e-05) #selecting the time range of interest for the fit
     t_fit=t[mask]
     Vch2_fit=Vch2[mask]
     
@@ -31,7 +31,6 @@ def main():
     )
 
     best_fit_5_par=firstfit_result.x
-    print("Best fit parameters (5 par fit):", best_fit_5_par)
     # 5 parameters best fit values
     Vch2_model_5 = model_5_par(t_fit, *best_fit_5_par)
 
@@ -75,7 +74,7 @@ def main():
     #defining the initial guess for the parameters A, alfa and omega
     initial_3_parameters=[np.max(np.abs(Vch2_corr)), best_fit_5_par[1], best_fit_5_par[2]] 
 
-    #first 3 parameters data
+    #first 5 parameters data
     finalfit_result= least_squares(residuals_3_par,
                         initial_3_parameters,
                         args=(t_corr, Vch2_corr, sigma_t, sigma_V_corr)
@@ -113,50 +112,6 @@ def main():
     print(f"chi2_3 expected ~ {chi2_3_expected:.3f} ± {chi2_3_sigma:.3f}")
 
 
-    #####################################
-    # MULTIVARIATE CHI2 ANALYSIS SECTION #
-    #####################################
-
-    # costruzione della mappa chi2 attorno al best fit finale
-    A_grid, alfa_grid, omega_grid, chi2_3d = chi2_map_3_par(
-        t_corr,
-        Vch2_corr,
-        sigma_t,
-        sigma_V_corr,
-        best_fit_3_par,
-        par_err_3_par,
-        nsigma=3.0,
-        step=60
-    )
-
-    # minimo globale della mappa
-    idx_min_3d = np.unravel_index(np.argmin(chi2_3d), chi2_3d.shape)
-    chi2_min_map = chi2_3d[idx_min_3d]
-
-    A_best_map = A_grid[idx_min_3d[0]]
-    alfa_best_map = alfa_grid[idx_min_3d[1]]
-    omega_best_map = omega_grid[idx_min_3d[2]]
-
-    print("\n===== CHI2 MAP ANALYSIS =====")
-    print(f"chi2_min from map = {chi2_min_map:.3f}")
-    print(f"A_best_map = {A_best_map:.6e}")
-    print(f"alfa_best_map = {alfa_best_map:.6e}")
-    print(f"omega_best_map = {omega_best_map:.6e}")
-
-    # profilazioni 1D
-    prof_A = profile_1d(chi2_3d, axis_to_keep=0)
-    prof_alfa = profile_1d(chi2_3d, axis_to_keep=1)
-    prof_omega = profile_1d(chi2_3d, axis_to_keep=2)
-
-    # errori chi2_min + 1
-    A_best_prof, errA_left, errA_right, chi2A_min, levelA = find_chi2_plus_one_errors(A_grid, prof_A)
-    alfa_best_prof, erralfa_left, erralfa_right, chi2alfa_min, levelalfa = find_chi2_plus_one_errors(alfa_grid, prof_alfa)
-    omega_best_prof, erromega_left, erromega_right, chi2omega_min, levelomega = find_chi2_plus_one_errors(omega_grid, prof_omega)
-
-    print("\n===== PARAMETER ERRORS FROM chi2_min + 1 =====")
-    print(f"A = ({A_best_prof:.6e} - {errA_left:.2e} + {errA_right:.2e})")
-    print(f"alfa = ({alfa_best_prof:.6e} - {erralfa_left:.2e} + {erralfa_right:.2e})")
-    print(f"omega = ({omega_best_prof:.6e} - {erromega_left:.2e} + {erromega_right:.2e})")
 
     
 
@@ -180,8 +135,8 @@ def main():
     plt.figure(figsize=(10, 5))
     plt.plot(t_corr, Vch2_corr, ".", label="Dati", markersize=3)
     plt.plot(t_corr, model_3_par(t_corr, *best_fit_3_par), label="Best fit 3 parametri", color="red")
-    plt.xlabel("Tempo corretto [s]")
-    plt.ylabel("Tensione corretta [V]")
+    plt.xlabel("Tempo [s]")
+    plt.ylabel("Tensione [V]")
     plt.title("Fit del segnale a 3 parametri")
     plt.legend()
     plt.grid(True)
@@ -212,33 +167,6 @@ def main():
     plt.tight_layout()
     plt.show()
 
-
-        # plot profilazioni 1D
-    fig, axes = plt.subplots(3, 1, figsize=(8, 10))
-
-    axes[0].plot(A_grid, prof_A)
-    axes[0].axhline(chi2A_min + 1, color="red", linestyle="--")
-    axes[0].set_xlabel("A")
-    axes[0].set_ylabel("chi2 profiled")
-    axes[0].set_title("Profilazione 1D su A")
-    axes[0].grid(True)
-
-    axes[1].plot(alfa_grid, prof_alfa)
-    axes[1].axhline(chi2alfa_min + 1, color="red", linestyle="--")
-    axes[1].set_xlabel("alfa")
-    axes[1].set_ylabel("chi2 profiled")
-    axes[1].set_title("Profilazione 1D su alfa")
-    axes[1].grid(True)
-
-    axes[2].plot(omega_grid, prof_omega)
-    axes[2].axhline(chi2omega_min + 1, color="red", linestyle="--")
-    axes[2].set_xlabel("omega")
-    axes[2].set_ylabel("chi2 profiled")
-    axes[2].set_title("Profilazione 1D su omega")
-    axes[2].grid(True)
-
-    plt.tight_layout()
-    plt.show()
 
 
 
@@ -314,105 +242,6 @@ def parameter_uncertainties(result):
 #######################################################################
 
 
-###############################
-# CHI2 MULTIVARIATE FUNCTIONS #
-###############################
-
-def chi2_map_3_par(t, V, sigma_t, sigma_V, best_fit_3_par, par_err_3_par,
-                   nsigma=3.0, step=60):
-    """
-    Costruisce la mappa 3D del chi2 per i parametri:
-    A, alfa, omega
-
-    La scansione è centrata sul best fit e si estende di ± nsigma * errore
-    per ciascun parametro.
-    """
-
-    A0, alfa0, omega0 = best_fit_3_par
-    dA, dalfa, domega = par_err_3_par
-
-    # estremi della scansione
-    A_grid = np.linspace(A0 - nsigma * dA,     A0 + nsigma * dA,     step)
-    alfa_grid = np.linspace(alfa0 - nsigma * dalfa, alfa0 + nsigma * dalfa, step)
-    omega_grid = np.linspace(omega0 - nsigma * domega, omega0 + nsigma * domega, step)
-
-    chi2_map = np.empty((step, step, step))
-
-    for i, A in enumerate(A_grid):
-        for j, alfa in enumerate(alfa_grid):
-            for k, omega in enumerate(omega_grid):
-                V_model = model_3_par(t, A, alfa, omega)
-                dVdt_model = derivative_model_3_par(t, A, alfa, omega)
-                sigma_eff = np.sqrt(sigma_V**2 + (dVdt_model * sigma_t)**2)
-
-                resid = V - V_model
-                chi2 = np.sum((resid / sigma_eff)**2)
-                chi2_map[i, j, k] = chi2
-
-    return A_grid, alfa_grid, omega_grid, chi2_map
-
-
-def profile_1d(chi2_map, axis_to_keep):
-    """
-    Profilazione 1D:
-    tiene un asse e minimizza sugli altri due.
-    axis_to_keep:
-        0 -> A
-        1 -> alfa
-        2 -> omega
-    """
-    axes_to_minimize = tuple(ax for ax in range(3) if ax != axis_to_keep)
-    return np.min(chi2_map, axis=axes_to_minimize)
-
-
-def profile_2d(chi2_map, axes_to_keep):
-    """
-    Profilazione 2D:
-    tiene due assi e minimizza sul terzo.
-    axes_to_keep: tupla, es. (0,1), (0,2), (1,2)
-    """
-    axis_to_minimize = [ax for ax in range(3) if ax not in axes_to_keep][0]
-    return np.min(chi2_map, axis=axis_to_minimize)
-
-
-def find_chi2_plus_one_errors(grid, profile):
-    """
-    Trova il minimo della profilazione e gli errori sinistro/destro
-    usando il criterio chi2_min + 1.
-    """
-    idx_min = np.argmin(profile)
-    chi2_min = profile[idx_min]
-    level = chi2_min + 1.0
-
-    # lato sinistro
-    left_idx = None
-    for i in range(idx_min - 1, -1, -1):
-        if profile[i] >= level:
-            left_idx = i
-            break
-
-    # lato destro
-    right_idx = None
-    for i in range(idx_min + 1, len(profile)):
-        if profile[i] >= level:
-            right_idx = i
-            break
-
-    x_best = grid[idx_min]
-
-    if left_idx is None:
-        err_left = np.nan
-    else:
-        err_left = x_best - grid[left_idx]
-
-    if right_idx is None:
-        err_right = np.nan
-    else:
-        err_right = grid[right_idx] - x_best
-
-    return x_best, err_left, err_right, chi2_min, level
-############################################################
-#############################################################
 
 if __name__ == "__main__":
     main()
